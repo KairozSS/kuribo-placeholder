@@ -1,0 +1,20 @@
+{
+
+	"manifest_version": 2,
+	"name": "Kuribo",
+	"version": "1.0",
+
+	"description": "I'm fooling around here",
+
+	"icons": {
+		"48": "icons/kuribo-48.png"
+	},
+
+	"content_scripts": [
+		{
+			"matches": ["*://*.youtube.com/*"],
+			"js": ["kuribo.js"]
+		}
+	]
+
+}
