@@ -13,8 +13,9 @@
 	"content_scripts": [
 		{
 			"matches": ["*://*.youtube.com/*"],
-			"js": ["kuribo.js"]
+			"js": ["kuribo.js"],
+			"run_at": "document_start",
+			"all_frames": true
 		}
 	]
-
 }
