@@ -10,9 +10,14 @@
 		"48": "icons/kuribo-48.png"
 	},
 
+	"permissions": [
+		"*://localhost/*"	
+	],
+
 	"content_scripts": [
 		{
 			"matches": ["*://*.youtube.com/*"],
+			"css": ["kuribo.css"],
 			"js": ["kuribo.js"],
 			"run_at": "document_start",
 			"all_frames": true

@@ -1,0 +1,15 @@
+.anki-button {
+	width:  5%;
+	height: 8%;
+	background: red;
+	position: absolute;
+	right: 30px;
+	bottom:  100px;
+	border-radius: 50%;
+	cursor: pointer;
+	z-index: 99;
+}
+
+.hidden {
+	visibility: hidden;
+}
