@@ -22,41 +22,61 @@ async function getSubstitles({videoID, lang = 'en'}) {
 	const subtitle = 
 		captionTracks.find(el => el.vssId == `.${lang}`) ||
 		captionTracks.find(el => el.vssId == `a.${lang}`) ||
-		captionTracks.find(el => el.vssId && vssId.match(`.${lang}`));
+		captionTracks.find(el => el.vssId && vssId.match(`.${lang}`)); 
 	
 	if (!subtitle || (!subtitle.baseUrl)) {
 		throw new Error (`Could not find ${lang} captions for ${videoID}`);
 	}
 
+	var autoSubtitle = subtitle.vssId === `a.${lang}`;
+
+	subtitle.baseUrl = subtitle.baseUrl + '&fmt=json3';
+
 	const transcriptResponse = await fetch(subtitle.baseUrl);
-	const transcript = await transcriptResponse.text();
-	const lines = transcript
-		.replace('<?xml version="1.0" encoding="utf-8" ?><transcript>', '')
-		.replace('</transcript>', '')
-		.split('</text>')
-		.filter(line => line && line.trim())
-		.map(line => {
-			const startRegex = /start="([\d.]+)"/;
-			const durRegex = /dur="([\d.]+)"/;
+	const transcript = await transcriptResponse.json();
 
-			const [, start] = startRegex.exec(line);
-			const [, dur] = durRegex.exec(line);
-
-			const htmlText = line
-				.replace(/<text.+>/, '')
-				.replace(/&amp;/gi, '&')
-				.replace(/<\/?[^>]+(>|$)/g, '');
-
-			return {
-				start,
-				dur,
-				htmlText
+	if (autoSubtitle) {
+		var subtitles = transcript.events
+		.filter((el, i) => {
+			if (i === 0) {
+				return false;
+			}
+	
+			if (el.segs[0].utf8 === '\n') {
+				return false
+			}
+	
+			return true;
+		})
+		.map((el, i, arr) => {
+			const obj = {
+				start: el.tStartMs,
+				end: i + 1 < arr.length ? arr[i + 1].tStartMs : el.tStartMs + el.dDurationMs,
+				text: el.segs.map((seg) => {
+					return seg.utf8;
+				}).join(' ')
 			};
+	
+			return obj;
 		});
+	}
 
-	return lines;
+	else {
+		var subtitles = transcript.events.map((el,i) => {
+			const obj = {
+				start: el.tStartMs,
+				end: el.tStartMs + el.dDurationMs,
+				text: el.segs.map((seg) => {
+					return seg.utf8;
+				}).join(' ')
+			}
+
+			return obj;
+		});
+	}
+
+	return subtitles;
 }
-
 
 
 function reqListener () {
@@ -105,24 +125,25 @@ function run(e) {
 		.then((subtitles) => { 
 			console.log(subtitles)
 
-			setInterval(function() {
+			setInterval(function(){
 				if (subtitles.length == 0) return;
-				var t = player_content.wrappedJSObject.getCurrentTime();
+
+				var t = parseInt(player_content.wrappedJSObject.getCurrentTime()*1000);
 				var found = -1;
-				for (var i = 0; i < subtitles.length; i++) {
-					if (t*1000 >= parseFloat(subtitles[i].start) * 1000 && t*1000 <= parseFloat(subtitles[i].start) * 1000 + parseFloat(subtitles[i].dur) * 1000) {
-						found = i;
-						break;
-					}
+
+				for (let i = 0; i < subtitles.length; i++) {
+					if(t >= subtitles[i].start && t <= subtitles[i].end) {
+				 		found = i;
+				 		break;
+				 	}
 				}
 
-				if (found == -1) {
-					subtitlesContainer.textContent = "";
+				if (found === -1) {
+				 	subtitlesContainer.textContent = "";
+				} else {
+				 	subtitlesContainer.textContent = subtitles[found].text;
 				}
 
-				else {
-					subtitlesContainer.textContent = subtitles[found].htmlText;
-				}
 			}, 100);
 		});
 	});
