@@ -15,11 +15,21 @@
 }
 
 .subtitlesContainer {
-	width: 500px;
-	height: 50px;
-	background: black;
 	position: absolute;
-	border: solid 1px red;
-	z-index: 99999;
+	width: -moz-fit-content;
+	left: 0;
+	right: 0;
+	bottom: 50px;
+	margin: auto;
+	padding: 8px 16px;
+	z-index: 99;
 	color: #fff;
+	font-weight: 900;
+	font-size: calc(100vw / 1920 * 18 + 18px);
+	-moz-user-select: text;
+	-khtml-user-select: text;
+	-webkit-user-select: text;
+	-ms-user-select: text;
+	user-select: text;
+	-webkit-text-stroke: 1.5px black;
 }

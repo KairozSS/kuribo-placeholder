@@ -51,7 +51,7 @@ function isAutoSubtitle(subtitleData) {
 }
 
 /* Returns a list of objects with this template: {start, end, text)
-   Given the subtitles of Youtube in JSON */   
+	 Given the subtitles of Youtube in JSON */   
 function formatSubtitlesContents(subtitlesContents, isAutoSubtitle) {
 	if (isAutoSubtitle) {
 		var subtitles = subtitlesContents.events
@@ -135,33 +135,46 @@ function main() {
 	player.appendChild(ankiButton);
 	player.appendChild(subtitlesContainer);
 
-	player_container.addEventListener('mouseover', (e) => {
+	/*subtitlesContainer.addEventListener('mouseover', (e) => {
 		ankiButton.classList.remove('hidden');
+	});*/
+
+	subtitlesContainer.addEventListener('mouseup', (e) => {
+		var selectedText = window.getSelection().toString();
+		if(selectedText) {
+			console.log(selectedText);
+			ankiButton.classList.remove('hidden');
+		} else {
+			ankiButton.classList.add('hidden');	
+		}
 	});
 
-	controls.addEventListener('mouseover', (e) => {
+	/*controls.addEventListener('mouseover', (e) => {
 		e.stopPropagation();
 		ankiButton.classList.add('hidden');
-	});
+	});*/
 
-	player_container.addEventListener('mouseout', (e) => {
+	/*subtitlesContainer.addEventListener('mouseout', (e) => {
 		ankiButton.classList.add('hidden');
-	});
+	});*/
 
 	ankiButton.addEventListener('click', function(e) {
 
 	});
 
-	// TO DO: Track which subtitle is active. If current subtitle is active, no point in searching new one.
+	//Display subtitles at the designated times
 	getSubstitles({videoID: getVideoID(player), lang: 'en'})
-		.then((subtitles) => { 
-			console.log(subtitles)
+		.then((subtitles) => {
+			if (subtitles.length == 0) return;
 
+			var sub = {};
 			setInterval(function(){
-				if (subtitles.length == 0) return;
 				var t = parseInt(player.getCurrentTime()*1000);
-				var sub = subtitles.find(sub => t >= sub.start && t <= sub.end);
-				subtitlesContainer.textContent = sub.text || '';
+				//Don't find subtitles until the timing of the current subtitle is over
+				if (!(t >= sub.start && t <= sub.end)) {
+					sub = subtitles.find(sub => t >= sub.start && t <= sub.end) || {};
+					subtitlesContainer.innerText = sub.text || '';
+				}
 			}, 100);
 		});
 } 
