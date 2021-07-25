@@ -8,8 +8,13 @@ function getVideoTitle(player) {
 	return player.getVideoData()['title'];
 }
 
+// TO DO
+function recordAudio(start, end) {
+
+}
+
 //videoID is a string. Returns a list of objects with the avaliable captions
-async function getCaptionTracksList(videoID) {
+/*async function getCaptionTracksList(videoID) {
 	const dataResponse = await fetch(
 		`https://www.youtube.com/get_video_info?video_id=${videoID}&html5=1&c=TVHTML5&cver=6.20180913`,
 	);
@@ -26,7 +31,15 @@ async function getCaptionTracksList(videoID) {
 	const { captionTracks } = JSON.parse(`${match}}`);
 
 	return captionTracks;
+}*/
+
+function getCaptionTracksList(videoID, player) {
+	const { captionTracks } = player.getAudioTrack();
+	const myArray = [...captionTracks];
+
+	return myArray;
 }
+
 
 // Find subtitle data, which language is lang, in a list of caption tracks
 function findSubtitleData(captionTracksList, lang) {
@@ -35,12 +48,12 @@ function findSubtitleData(captionTracksList, lang) {
 		captionTracksList.find(el => el.vssId == `a.${lang}`) || //Auto-generated subs
 		captionTracksList.find(el => el.vssId && el.vssId.includes(`.${lang}`));
 
-	if (!subtitleData || (!subtitleData.baseUrl)) {
+	if (!subtitleData || (!subtitleData.url)) {
 		throw new Error (`Could not find ${lang} captions`);
 	}
 
 	//Parameter required in URL for getting subtitles contents in JSON
-	subtitleData.baseUrl = subtitleData.baseUrl + '&fmt=json3';
+	subtitleData.url = subtitleData.url + '&fmt=json3';
 
 	return subtitleData;
 }
@@ -68,7 +81,7 @@ function formatSubtitlesContents(subtitlesContents, isAutoSubtitle) {
 				//end is the start of the next subtitle
 				const subtitle = {
 					start: el.tStartMs,
-					end: i + 1 < arr.length ? arr[i + 1].tStartMs : el.tStartMs + el.dDurationMs,
+					end: i + 1 < arr.length ? (el.tStartMs + el.dDurationMs < arr[i + 1].tStartMs ? el.tStartMs + el.dDurationMs : arr[i + 1].tStartMs) : el.tStartMs + el.dDurationMs,
 					text: el.segs.map((seg) => {
 						return seg.utf8;
 					}).join(' ')
@@ -93,10 +106,10 @@ function formatSubtitlesContents(subtitlesContents, isAutoSubtitle) {
 }
 
 //Get subtitles given the videoID and lang (both strings).
-async function getSubstitles({videoID, lang = 'en'}) {
-	const captionTracksList = await getCaptionTracksList(videoID);
+async function getSubtitles({videoID, lang = 'en', player}) {
+	const captionTracksList = getCaptionTracksList(videoID, player);
 	const subtitleData = findSubtitleData(captionTracksList, lang);
-	const subtitlesContentsResponse = await fetch(subtitleData.baseUrl);
+	const subtitlesContentsResponse = await fetch(subtitleData.url);
 	const subtitlesContents = await subtitlesContentsResponse.json(); //Subtitles timing and text
 	const subtitles = formatSubtitlesContents(
 		subtitlesContents, 
@@ -163,7 +176,7 @@ function main() {
 	});
 
 	//Display subtitles at the designated times
-	getSubstitles({videoID: getVideoID(player), lang: 'en'})
+	getSubtitles({videoID: getVideoID(player), lang: 'en', player:player})
 		.then((subtitles) => {
 			if (subtitles.length == 0) return;
 
