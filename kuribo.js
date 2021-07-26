@@ -8,7 +8,7 @@ function getVideoTitle(player) {
 	return player.getVideoData()['title'];
 }
 
-// TO DO
+// TO DO 
 function recordAudio(start, end) {
 
 }
@@ -80,6 +80,7 @@ function formatSubtitlesContents(subtitlesContents, isAutoSubtitle) {
 			.map((el, i, arr) => {
 				//end is the start of the next subtitle
 				const subtitle = {
+					id: i,
 					start: el.tStartMs,
 					end: i + 1 < arr.length ? (el.tStartMs + el.dDurationMs < arr[i + 1].tStartMs ? el.tStartMs + el.dDurationMs : arr[i + 1].tStartMs) : el.tStartMs + el.dDurationMs,
 					text: el.segs.map((seg) => {
@@ -92,6 +93,7 @@ function formatSubtitlesContents(subtitlesContents, isAutoSubtitle) {
 	else { //When the subtitle is not auto-generated
 		var subtitles = subtitlesContents.events.map((el,i) => {
 			const subtitle = {
+				id: i,
 				start: el.tStartMs,
 				end: el.tStartMs + el.dDurationMs,
 				text: el.segs.map((seg) => {
@@ -119,6 +121,95 @@ async function getSubtitles({videoID, lang = 'en', player}) {
 	return subtitles;
 }
 
+/* Returns a boolean that tells if the current subtitle is displayed
+   in the given time t.
+*/
+function isSubtitleDisplayed(subtitle, t) {
+	return t >= subtitle.start && t <= subtitle.end
+}
+
+/* Returns the current subtitle displayed in the given time t.
+   Sometimes there are gaps where there is not any subtitle
+   displayed. If you set ignoreGaps to false the function
+   will return an empty object in those gaps. If you set
+   ignoreGaps to true the function will return the
+   subtitle before the gap. For the case where is a gap
+   before the first subtitle, it will return the first
+   subtitle. If subtitles is an empty array, it will return
+   an empty object.
+*/
+function getCurrentSubtitle(subtitles, t, ignoreGaps = false) {
+	if (subtitles.length === 0) {
+		return {};
+	}
+
+	return ignoreGaps 
+				 ? subtitles.slice().reverse().find(sub => t >= sub.start) || subtitles[0]
+		     : subtitles.find(sub => t >= sub.start && t < sub.end) || {};
+}
+
+/* Returns the previous subtitle.
+   If the given subtitle is not displayed in the given time t, the
+   function will return the subtitle itself. If there is no previous
+   subtitle, the function will return an empty object.
+*/
+function getPreviousSubtitle(subtitles, subtitle, t) {
+	if (subtitle.id - 1 < 0) {
+		return {};
+	}
+
+	return isSubtitleDisplayed(subtitle, t)
+	       ? subtitles[subtitle.id - 1]
+	       : subtitle;
+}
+
+/* Gets the next subtitle.
+   If there is no next subtitle, the function will return
+   an empty object.
+*/
+
+function getNextSubtitle(subtitles, subtitle, t) {
+	if (subtitle.id + 1 >= subtitles.length) {
+		return {};
+	}
+	//This is needed for getting the first subtitle before it is showed.
+	return t < subtitle.start
+	       ? subtitles[0]
+	       : subtitles[subtitle.id + 1];
+}
+
+function goToPreviousSubtitle(player, subtitles) {
+	var t = parseInt(player.getCurrentTime()*1000)
+	var subtitle = getCurrentSubtitle(subtitles, t, true);
+	var prevSubtitle = getPreviousSubtitle(subtitles, subtitle, t);
+	if (!prevSubtitle.start) {
+		return;
+	}
+
+	player.seekTo(prevSubtitle.start/1000);
+}
+
+function goToNextSubtitle(player, subtitles) {
+	var t = parseInt(player.getCurrentTime()*1000)
+	var subtitle = getCurrentSubtitle(subtitles, t, true);
+	var nextSubtitle = getNextSubtitle(subtitles, subtitle, t);
+	if (!nextSubtitle.start) {
+		return;
+	}
+	
+	player.seekTo(nextSubtitle.start/1000);
+}
+
+function replayCurrentSubtitle(player, subtitles) {
+	var t = parseInt(player.getCurrentTime()*1000)
+	var subtitle = getCurrentSubtitle(subtitles, t);
+
+	if (!subtitle.start) {
+		return;
+	}
+	
+	player.seekTo(subtitle.start/1000);
+}
 
 function reqListener () {
 	console.log('jo');
@@ -181,11 +272,27 @@ function main() {
 			if (subtitles.length == 0) return;
 
 			var sub = {};
+
+			player_container.addEventListener('keydown', function(e) {
+				if (e.code === "KeyA") {
+					goToPreviousSubtitle(player, subtitles);
+				}
+
+				if (e.code === "KeyD") {
+					goToNextSubtitle(player, subtitles);
+				}
+
+				if(e.code === "KeyW") {
+					e.stopImmediatePropagation();
+					replayCurrentSubtitle(player, subtitles);
+				}
+			}, true);
+
 			setInterval(function(){
 				var t = parseInt(player.getCurrentTime()*1000);
 				//Don't find subtitles until the timing of the current subtitle is over
-				if (!(t >= sub.start && t <= sub.end)) {
-					sub = subtitles.find(sub => t >= sub.start && t <= sub.end) || {};
+				if (!(t >= sub.start && t < sub.end)) {
+					sub = getCurrentSubtitle(subtitles, t);
 					subtitlesContainer.innerText = sub.text || '';
 				}
 			}, 100);
