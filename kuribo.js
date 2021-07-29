@@ -1,3 +1,21 @@
+//References
+var player_container;
+var player;
+var controls = document.querySelector('.ytp-chrome-bottom');
+
+//Flag
+var runOnce = false;
+var audioIsConnected = false;
+var context = new AudioContext();
+
+// Elements to inject
+var ankiButton = document.createElement('div');
+var subtitlesContainer = document.createElement('div');
+var textnode = document.createTextNode("Anki");
+ankiButton.classList.add('anki-button');
+subtitlesContainer.classList.add('subtitlesContainer');
+ankiButton.appendChild(textnode);
+
 //returns video ID
 function getVideoID(player) {
 	return player.getVideoData()['video_id'];
@@ -8,9 +26,77 @@ function getVideoTitle(player) {
 	return player.getVideoData()['title'];
 }
 
-// TO DO 
-function recordAudio(start, end) {
+function takeScreenshot() {
+	const video = document.querySelector(".video-stream");
 
+	var canvas = document.createElement('canvas');
+	canvas.width = 640;
+	canvas.height = 480;
+	var ctx = canvas.getContext('2d');
+	ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+	var dataURI = canvas.toDataURL('image/jpeg');
+
+	console.log(dataURI);
+}
+
+// TO DO Write a description
+function recordAudio(player, subtitle) {
+	if (!subtitle.start) return; 
+	const video = document.querySelector(".video-stream");
+	const capture = HTMLMediaElement.prototype.captureStream 
+							|| HTMLMediaElement.prototype.mozCaptureStream;
+
+
+	//Getting audio from video
+	var source = context.createMediaElementSource(video);
+
+	//Fixing mute bug
+	if (!audioIsConnected) {
+		source.connect(context.destination);
+		audioIsConnected = true;
+	}
+
+	//Still getting audio from video
+	var streamDest = context.createMediaStreamDestination();
+	source.connect(streamDest);
+	let stream = streamDest.stream;
+
+	let recorder = new MediaRecorder(stream);
+	recorder.ondataavailable = e => {
+    console.log(e.data);
+    console.log('success!');
+    invokeSaveAsDialog(e.data);
+  }
+
+	var recording = false;
+
+	function handleRecording() {
+		var t = player.getCurrentTime()*1000;
+		var state = player.getPlayerState();
+
+		if (state === 2 && !recording) {
+			try {
+			 recorder.start();
+			} catch(e) {
+				console.log(e);
+			}
+			recording = true;
+			console.log("Recording");
+			setTimeout(() => player.playVideo(), 100);
+		}
+
+		if (t >= subtitle.end && recording) {
+			player.pauseVideo();
+			clearInterval(interval);
+			console.log("cleared interval");
+			recorder.stop();
+			console.log("Stopped recording");
+		}
+	}
+	var interval;
+	goToSubtitle(player, subtitle);
+	player.pauseVideo();
+	setTimeout(() => {interval = setInterval(handleRecording, 10);}, 100);
 }
 
 //videoID is a string. Returns a list of objects with the avaliable captions
@@ -122,21 +208,21 @@ async function getSubtitles({videoID, lang = 'en', player}) {
 }
 
 /* Returns a boolean that tells if the current subtitle is displayed
-   in the given time t.
+	 in the given time t.
 */
 function isSubtitleDisplayed(subtitle, t) {
 	return t >= subtitle.start && t <= subtitle.end
 }
 
 /* Returns the current subtitle displayed in the given time t.
-   Sometimes there are gaps where there is not any subtitle
-   displayed. If you set ignoreGaps to false the function
-   will return an empty object in those gaps. If you set
-   ignoreGaps to true the function will return the
-   subtitle before the gap. For the case where is a gap
-   before the first subtitle, it will return the first
-   subtitle. If subtitles is an empty array, it will return
-   an empty object.
+	 Sometimes there are gaps where there is not any subtitle
+	 displayed. If you set ignoreGaps to false the function
+	 will return an empty object in those gaps. If you set
+	 ignoreGaps to true the function will return the
+	 subtitle before the gap. For the case where is a gap
+	 before the first subtitle, it will return the first
+	 subtitle. If subtitles is an empty array, it will return
+	 an empty object.
 */
 function getCurrentSubtitle(subtitles, t, ignoreGaps = false) {
 	if (subtitles.length === 0) {
@@ -145,13 +231,13 @@ function getCurrentSubtitle(subtitles, t, ignoreGaps = false) {
 
 	return ignoreGaps 
 				 ? subtitles.slice().reverse().find(sub => t >= sub.start) || subtitles[0]
-		     : subtitles.find(sub => t >= sub.start && t < sub.end) || {};
+				 : subtitles.find(sub => t >= sub.start && t < sub.end) || {};
 }
 
 /* Returns the previous subtitle.
-   If the given subtitle is not displayed in the given time t, the
-   function will return the subtitle itself. If there is no previous
-   subtitle, the function will return an empty object.
+	 If the given subtitle is not displayed in the given time t, the
+	 function will return the subtitle itself. If there is no previous
+	 subtitle, the function will return an empty object.
 */
 function getPreviousSubtitle(subtitles, subtitle, t) {
 	if (subtitle.id - 1 < 0) {
@@ -159,13 +245,13 @@ function getPreviousSubtitle(subtitles, subtitle, t) {
 	}
 
 	return isSubtitleDisplayed(subtitle, t)
-	       ? subtitles[subtitle.id - 1]
-	       : subtitle;
+				 ? subtitles[subtitle.id - 1]
+				 : subtitle;
 }
 
 /* Gets the next subtitle.
-   If there is no next subtitle, the function will return
-   an empty object.
+	 If there is no next subtitle, the function will return
+	 an empty object.
 */
 
 function getNextSubtitle(subtitles, subtitle, t) {
@@ -174,8 +260,15 @@ function getNextSubtitle(subtitles, subtitle, t) {
 	}
 	//This is needed for getting the first subtitle before it is showed.
 	return t < subtitle.start
-	       ? subtitles[0]
-	       : subtitles[subtitle.id + 1];
+				 ? subtitles[0]
+				 : subtitles[subtitle.id + 1];
+}
+
+function goToSubtitle(player, subtitle) {
+	if (!subtitle.start) {
+		return;
+	}
+	player.seekTo(subtitle.start/1000);
 }
 
 function goToPreviousSubtitle(player, subtitles) {
@@ -226,69 +319,67 @@ function invoke(action, version, params={}) {
 	console.log('4');
 }
 
+/*
+	Get references to the player and add event listeners. Set runOnce to true.
+*/
+function initializePlayer() {
+	player_container = document.querySelector('#ytd-player');
+	player = document.querySelector('#movie_player').wrappedJSObject;
+	controls = document.querySelector('.ytp-chrome-bottom');
+	initializeHotkeys();
+	runOnce = true;
+}
+
+function handleKeys(e) {
+	if (e.code === "KeyA") {
+		goToPreviousSubtitle(player, subtitles);
+	}
+
+	if (e.code === "KeyD") {
+		goToNextSubtitle(player, subtitles);
+	}
+
+	if (e.code === "KeyS") {
+		subtitlesContainer.classList.toggle('hidden');
+	}
+
+	if(e.code === "KeyW") {
+		e.stopImmediatePropagation();
+		replayCurrentSubtitle(player, subtitles);
+	}
+
+}
+
+function initializeHotkeys() {
+	player_container.addEventListener('keydown', handleKeys, true);
+}
+
+/* 
+	Removes any added element to the player (subtitlesContainer and ankiButton)
+*/
+function unmountElementsPlayer() {
+	clearInterval(window.subtitleInterval);
+	subtitlesContainer.innerText = "";
+	subtitlesContainer.remove();
+	ankiButton.remove();
+}
+
 function main() {
-	const player_container = document.querySelector('#ytd-player');
-	const player = document.querySelector('#movie_player').wrappedJSObject;
-	const controls = document.querySelector('.ytp-chrome-bottom');
-	const ankiButton = document.createElement('DIV');
-	var subtitlesContainer = document.createElement('div');
-	var textnode = document.createTextNode("Anki");
-	ankiButton.classList.add('anki-button', 'hidden');
-	subtitlesContainer.classList.add('subtitlesContainer');
-	ankiButton.appendChild(textnode);
-	player.appendChild(ankiButton);
-	player.appendChild(subtitlesContainer);
-
-	/*subtitlesContainer.addEventListener('mouseover', (e) => {
-		ankiButton.classList.remove('hidden');
-	});*/
-
-	subtitlesContainer.addEventListener('mouseup', (e) => {
-		var selectedText = window.getSelection().toString();
-		if(selectedText) {
-			console.log(selectedText);
-			ankiButton.classList.remove('hidden');
-		} else {
-			ankiButton.classList.add('hidden');	
-		}
-	});
-
-	/*controls.addEventListener('mouseover', (e) => {
-		e.stopPropagation();
-		ankiButton.classList.add('hidden');
-	});*/
-
-	/*subtitlesContainer.addEventListener('mouseout', (e) => {
-		ankiButton.classList.add('hidden');
-	});*/
-
-	ankiButton.addEventListener('click', function(e) {
-
-	});
+	if (runOnce) unmountElementsPlayer();
+	if (!runOnce) initializePlayer();
 
 	//Display subtitles at the designated times
 	getSubtitles({videoID: getVideoID(player), lang: 'en', player:player})
 		.then((subtitles) => {
+			window.subtitles = subtitles;
 			if (subtitles.length == 0) return;
+
+			player.appendChild(ankiButton);
+			player.appendChild(subtitlesContainer);
 
 			var sub = {};
 
-			player_container.addEventListener('keydown', function(e) {
-				if (e.code === "KeyA") {
-					goToPreviousSubtitle(player, subtitles);
-				}
-
-				if (e.code === "KeyD") {
-					goToNextSubtitle(player, subtitles);
-				}
-
-				if(e.code === "KeyW") {
-					e.stopImmediatePropagation();
-					replayCurrentSubtitle(player, subtitles);
-				}
-			}, true);
-
-			setInterval(function(){
+			window.subtitleInterval = setInterval(function(){
 				var t = parseInt(player.getCurrentTime()*1000);
 				//Don't find subtitles until the timing of the current subtitle is over
 				if (!(t >= sub.start && t < sub.end)) {
@@ -296,14 +387,46 @@ function main() {
 					subtitlesContainer.innerText = sub.text || '';
 				}
 			}, 100);
+		})
+		.catch(() => {
+			window.subtitles = undefined
+			console.log(subtitles);
 		});
-} 
+}
 
-window.addEventListener('yt-navigate-finish', () => {
+/*subtitlesContainer.addEventListener('mouseover', (e) => {
+	ankiButton.classList.remove('hidden');
+});*/
+
+/*subtitlesContainer.addEventListener('mouseup', (e) => {
+	var selectedText = window.getSelection().toString();
+	if(selectedText) {
+		console.log(selectedText);
+		ankiButton.classList.remove('hidden');
+	} else {
+		ankiButton.classList.add('hidden');	
+	}
+});*/
+
+/*controls.addEventListener('mouseover', (e) => {
+	e.stopPropagation();
+	ankiButton.classList.add('hidden');
+});*/
+
+/*subtitlesContainer.addEventListener('mouseout', (e) => {
+	ankiButton.classList.add('hidden');
+});*/
+
+ankiButton.addEventListener('click', function(e) {  
+	//takeScreenshot();
+	recordAudio(player, getCurrentSubtitle(subtitles, player.getCurrentTime() * 1000));
+});
+
+window.addEventListener('yt-navigate-finish', function() {
 	try {
 		main();
-	} catch (e) { 
-		console.log(e) 
+	} catch(e) {
+		console.log(e)
 	}
 });
 
