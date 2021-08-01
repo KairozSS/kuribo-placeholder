@@ -26,21 +26,26 @@ function getVideoTitle(player) {
 	return player.getVideoData()['title'];
 }
 
+function getSelectedText() {
+	return window.getSelection().toString() || "";
+}
+
 function takeScreenshot() {
 	const video = document.querySelector(".video-stream");
 
 	var canvas = document.createElement('canvas');
-	canvas.width = 640;
+	canvas.width = 853;
 	canvas.height = 480;
 	var ctx = canvas.getContext('2d');
 	ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 	var dataURI = canvas.toDataURL('image/jpeg');
 
-	console.log(dataURI);
+	return dataURI.split(',')[1];
 }
 
 // TO DO Write a description
-function recordAudio(player, subtitle) {
+// TO DO write this as a promise
+function recordAudio(player, subtitle, callback) {
 	if (!subtitle.start) return; 
 	const video = document.querySelector(".video-stream");
 	const capture = HTMLMediaElement.prototype.captureStream 
@@ -63,10 +68,10 @@ function recordAudio(player, subtitle) {
 
 	let recorder = new MediaRecorder(stream);
 	recorder.ondataavailable = e => {
-    console.log(e.data);
-    console.log('success!');
-    invokeSaveAsDialog(e.data);
-  }
+		blobToBase64(e.data, function(base64String) {
+			callback(base64String);
+		});
+	}
 
 	var recording = false;
 
@@ -304,21 +309,6 @@ function replayCurrentSubtitle(player, subtitles) {
 	player.seekTo(subtitle.start/1000);
 }
 
-function reqListener () {
-	console.log('jo');
-}
-
-function invoke(action, version, params={}) {
-	var oReq = new XMLHttpRequest();
-	console.log('1');
-	oReq.addEventListener('load', reqListener);
-	console.log('2');
-	oReq.open('POST', 'http://localhost:8765');
-	console.log('3');
-	oReq.send(JSON.stringify({action, version, params}));
-	console.log('4');
-}
-
 /*
 	Get references to the player and add event listeners. Set runOnce to true.
 */
@@ -364,6 +354,48 @@ function unmountElementsPlayer() {
 	ankiButton.remove();
 }
 
+/*
+	Calls AnkiConnect API
+*/
+function ankiConnectInvoke(action, version, params={}) {
+	return new Promise((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+		xhr.addEventListener('error', () => reject('failed to issue request'));
+		xhr.addEventListener('load', () => {
+			try {
+				const response = JSON.parse(xhr.responseText);
+				if (Object.getOwnPropertyNames(response).length != 2) {
+						throw 'response has an unexpected number of fields';
+				}
+				if (!response.hasOwnProperty('error')) {
+						throw 'response is missing required error field';
+				}
+				if (!response.hasOwnProperty('result')) {
+						throw 'response is missing required result field';
+				}
+				if (response.error) {
+						throw response.error;
+				}
+				resolve(response.result);
+			} catch (e) {
+				reject(e);
+			}
+		});
+		xhr.open('POST', 'http://localhost:8765');
+		xhr.send(JSON.stringify({action, version, params}));
+	});
+}
+
+function blobToBase64(blob, callback) {
+  var reader = new FileReader();
+  reader.onload = function() {
+      var dataUrl = reader.result;
+      var base64 = dataUrl.split(',')[1];
+      callback(base64);
+  };
+  reader.readAsDataURL(blob);
+};
+
 function main() {
 	if (runOnce) unmountElementsPlayer();
 	if (!runOnce) initializePlayer();
@@ -404,7 +436,7 @@ function main() {
 		console.log(selectedText);
 		ankiButton.classList.remove('hidden');
 	} else {
-		ankiButton.classList.add('hidden');	
+		ankiButton.classList.add('hidden'); 
 	}
 });*/
 
@@ -417,9 +449,55 @@ function main() {
 	ankiButton.classList.add('hidden');
 });*/
 
-ankiButton.addEventListener('click', function(e) {  
-	//takeScreenshot();
-	recordAudio(player, getCurrentSubtitle(subtitles, player.getCurrentTime() * 1000));
+ankiButton.addEventListener('click', function(e) {
+	player.pauseVideo();
+	const selectedText = getSelectedText();
+	const subtitle = getCurrentSubtitle(subtitles, player.getCurrentTime() * 1000);
+	recordAudio(player, subtitle, function(audio) {
+		const img = takeScreenshot();
+		const cardData = {
+			selectedText,
+			audio,
+			img,
+			subtitle
+		};
+		ankiConnectInvoke("addNote", 6, {
+			note: {
+				deckName: "4. Audio Bank Today (Pending)",
+				modelName: "MIA Eng DX",
+				fields: {
+					Sentence: subtitle.text,
+				  Word: selectedText,
+				  "Audio Card": "x"
+				},
+				options: {
+					allowDuplicate: true
+				},
+				tags: [
+					"kuribo"
+				],
+				audio: [{
+					filename: "audio_test.mp3",
+					data: audio,
+					fields: [
+						"Sentence Audio"
+					]
+				}],
+				picture: [{
+					filename: "img_test.jpg",
+					data: img,
+					fields: [
+						"Image"
+					]
+				}]
+			}
+		})
+		.then((res) => {
+			console.log(res);
+		}).catch(e => {
+			console.log(e);
+		}) 
+	});
 });
 
 window.addEventListener('yt-navigate-finish', function() {
