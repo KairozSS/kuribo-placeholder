@@ -9,12 +9,14 @@ var audioIsConnected = false;
 var context = new AudioContext();
 
 // Elements to inject
-var ankiButton = document.createElement('div');
+var ankiButton = document.createElement('button');
+var ankiIcon = browser.runtime.getURL("icons/anki.png");
 var subtitlesContainer = document.createElement('div');
-var textnode = document.createTextNode("Anki");
 ankiButton.classList.add('anki-button');
+ankiButton.style.backgroundImage = `url(${ankiIcon})`;
+ankiButton.style.backgroundSize = "contain";
+console.log(ankiIcon);
 subtitlesContainer.classList.add('subtitlesContainer');
-ankiButton.appendChild(textnode);
 
 //returns video ID
 function getVideoID(player) {

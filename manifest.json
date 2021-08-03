@@ -11,7 +11,17 @@
 	},
 
 	"permissions": [
-		"*://localhost/*"	
+		"*://localhost/*"
+	],
+
+	"browser_action": {
+		"default_icon": "icons/kuribo-48.png",
+		"default_title": "Kuribo",
+		"default_popup": "popup/card-format.html"
+	},
+
+	"web_accessible_resources": [
+		"icons/anki.png"
 	],
 
 	"content_scripts": [
