@@ -1,4 +1,4 @@
-//References
+//DOM References
 var player_container;
 var player;
 var controls = document.querySelector('.ytp-chrome-bottom');
@@ -453,52 +453,84 @@ function main() {
 
 ankiButton.addEventListener('click', function(e) {
 	player.pauseVideo();
+	var ankiExportSettings = browser.storage.local.get("ankiExportSettings");
 	const selectedText = getSelectedText();
 	const subtitle = getCurrentSubtitle(subtitles, player.getCurrentTime() * 1000);
 	recordAudio(player, subtitle, function(audio) {
 		const img = takeScreenshot();
-		const cardData = {
-			selectedText,
-			audio,
-			img,
-			subtitle
-		};
-		ankiConnectInvoke("addNote", 6, {
-			note: {
-				deckName: "4. Audio Bank Today (Pending)",
-				modelName: "MIA Eng DX",
-				fields: {
-					Sentence: subtitle.text,
-				  Word: selectedText,
-				  "Audio Card": "x"
-				},
-				options: {
-					allowDuplicate: true
-				},
-				tags: [
-					"kuribo"
-				],
-				audio: [{
-					filename: "audio_test.mp3",
-					data: audio,
-					fields: [
-						"Sentence Audio"
-					]
-				}],
-				picture: [{
-					filename: "img_test.jpg",
-					data: img,
-					fields: [
-						"Image"
-					]
-				}]
+
+		function formatSettings(ankiExportSettings) {
+			var settings = {};
+			var subtitleFields = {}
+			var selectedTextFields = {}
+			var audioFields = []
+			var pictureFields = []
+
+			for (let k in ankiExportSettings) {
+				if (ankiExportSettings[k] === "Deck") {
+					settings['deck'] = ankiExportSettings['Deck'];
+				}
+
+				if (ankiExportSettings[k] === "Model") {
+					settings['model'] = ankiExportSettings['Model'];
+				}
+
+				if (ankiExportSettings[k] === "Subtitle") {
+					subtitleFields[k] = subtitle.text;
+				}
+
+				if (ankiExportSettings[k] === "Selected Text") {
+					selectedTextFields[k] = selectedText;
+				}
+
+				if (ankiExportSettings[k] === "Audio") {
+					audioFields.push(k);
+				}
+
+				if (ankiExportSettings[k] === "Image") {
+					pictureFields.push(k);
+				}
 			}
-		})
-		.then((res) => {
-			console.log(res);
-		}).catch(e => {
+
+			return {deck: ankiExportSettings.Deck, model: ankiExportSettings.Model, subtitleFields, selectedTextFields, audioFields, pictureFields};
+		}
+
+		ankiExportSettings.then(e => {
 			console.log(e);
-		}) 
+			var settings = formatSettings(e['ankiExportSettings']);
+			ankiConnectInvoke("addNote", 6, {
+				note: {
+					deckName: settings.deck,
+					modelName: settings.model,
+					fields: {
+						...settings.selectedTextFields,
+						...settings.subtitleFields,
+					  "Audio Card": "x"
+					},
+					options: {
+						allowDuplicate: true
+					},
+					tags: [
+						"kuribo"
+					],
+					audio: [{
+						filename: "audio_test.mp3",
+						data: audio,
+						fields: settings.audioFields
+					}],
+					picture: [{
+						filename: "img_test.jpg",
+						data: img,
+						fields: settings.pictureFields
+					}]
+				}
+			})
+			.then((res) => {
+				console.log(res);
+			}).catch(e => {
+				console.log(e);
+			})
+		});
 	});
 });
 

@@ -11,7 +11,8 @@
 	},
 
 	"permissions": [
-		"*://localhost/*"
+		"*://localhost/*",
+		"storage"
 	],
 
 	"browser_action": {
