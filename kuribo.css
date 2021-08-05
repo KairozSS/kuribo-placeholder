@@ -3,7 +3,7 @@
 	height: 50px;
 	position: absolute;
 	right: 30px;
-	bottom:  100px;
+	bottom: 0;
 	border-radius: 50%;
 	cursor: pointer;
 	z-index: 99;
@@ -14,16 +14,25 @@
 	line-height: 0;
 }
 
+.controls-container {
+	width: 100px;
+	height: 200px;
+	position: absolute;
+	right: 0;
+	bottom: 50px;
+	z-index: 120;
+}
+
 .hidden {
 	visibility: hidden;
 }
 
 .subtitlesContainer {
 	position: absolute;
-	width: -moz-fit-content;
+	width: 50%;
 	left: 0;
 	right: 0;
-	bottom: 50px;
+	bottom: 70px;
 	margin: auto;
 	padding: 8px 16px;
 	z-index: 99;

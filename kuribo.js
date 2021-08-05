@@ -9,10 +9,13 @@ var audioIsConnected = false;
 var context = new AudioContext();
 
 // Elements to inject
+var controlsContainer = document.createElement('div');
 var ankiButton = document.createElement('button');
 var ankiIcon = browser.runtime.getURL("icons/anki.png");
 var subtitlesContainer = document.createElement('div');
-ankiButton.classList.add('anki-button');
+controlsContainer.appendChild(ankiButton);
+controlsContainer.classList.add('controls-container');
+ankiButton.classList.add('anki-button', 'hidden');
 ankiButton.style.backgroundImage = `url(${ankiIcon})`;
 ankiButton.style.backgroundSize = "contain";
 console.log(ankiIcon);
@@ -84,6 +87,8 @@ function recordAudio(player, subtitle, callback) {
 		if (state === 2 && !recording) {
 			try {
 			 recorder.start();
+			 ankiButton.disabled = true;
+			 ankiButton.style.cursor = "not-allowed";
 			} catch(e) {
 				console.log(e);
 			}
@@ -97,6 +102,8 @@ function recordAudio(player, subtitle, callback) {
 			clearInterval(interval);
 			console.log("cleared interval");
 			recorder.stop();
+			ankiButton.disabled = false;
+			ankiButton.style.cursor = "pointer";
 			console.log("Stopped recording");
 		}
 	}
@@ -408,7 +415,7 @@ function main() {
 			window.subtitles = subtitles;
 			if (subtitles.length == 0) return;
 
-			player.appendChild(ankiButton);
+			player.appendChild(controlsContainer);
 			player.appendChild(subtitlesContainer);
 
 			var sub = {};
@@ -428,9 +435,9 @@ function main() {
 		});
 }
 
-/*subtitlesContainer.addEventListener('mouseover', (e) => {
+controlsContainer.addEventListener('mouseover', (e) => {
 	ankiButton.classList.remove('hidden');
-});*/
+});
 
 /*subtitlesContainer.addEventListener('mouseup', (e) => {
 	var selectedText = window.getSelection().toString();
@@ -447,9 +454,9 @@ function main() {
 	ankiButton.classList.add('hidden');
 });*/
 
-/*subtitlesContainer.addEventListener('mouseout', (e) => {
+controlsContainer.addEventListener('mouseout', (e) => {
 	ankiButton.classList.add('hidden');
-});*/
+});
 
 ankiButton.addEventListener('click', function(e) {
 	player.pauseVideo();
