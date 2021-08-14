@@ -5,6 +5,41 @@ var selectNoteType = document.getElementById('note-type-names');
 var saveSettingsButton = document.getElementById('save-settings');
 var debugDIV = document.getElementById('debug-div');
 
+function formatSettings(ankiExportSettings) {
+	var settings = {};
+	var subtitleFields = {}
+	var selectedTextFields = {}
+	var audioFields = []
+	var pictureFields = []
+
+	for (let k in ankiExportSettings) {
+		if (ankiExportSettings[k] === "Deck") {
+			settings['deck'] = ankiExportSettings['Deck'];
+		}
+
+		if (ankiExportSettings[k] === "Model") {
+			settings['model'] = ankiExportSettings['Model'];
+		}
+
+		if (ankiExportSettings[k] === "Subtitle") {
+			subtitleFields[k] = subtitle.text;
+		}
+
+		if (ankiExportSettings[k] === "Selected Text") {
+			selectedTextFields[k] = selectedText;
+		}
+
+		if (ankiExportSettings[k] === "Audio") {
+			audioFields.push(k);
+		}
+
+		if (ankiExportSettings[k] === "Image") {
+			pictureFields.push(k);
+		}
+	}
+	return {deck: ankiExportSettings.Deck, model: ankiExportSettings.Model, subtitleFields, selectedTextFields, audioFields, pictureFields};
+}
+
 //Returns a select element given an array of options (strings) and id "string"
 function createSelectElement(options=[], id='') {
 	var select = document.createElement('select');
@@ -138,12 +173,20 @@ selectNoteType.addEventListener('change', async function(e) {
 	renderModelFieldNames(modelFieldNames);
 });
 
-ankiExportForm.addEventListener('submit', function(e) {
+ankiExportForm.addEventListener('submit', async function(e) {
+	//Avoids refreshing the HTML file
 	e.preventDefault();
-	const formData = new FormData(ankiExportForm);
-	const ankiExportSettings = Object.fromEntries(formData);
-	console.log(ankiExportSettings);
-	browser.storage.local.set({ankiExportSettings}).then(e => console.log("OK!"));
+	try {
+		//Saves values from form into key/value pairs.
+		const formData = new FormData(ankiExportForm);
+		//Converts the formData structure into an Object
+		let ankiExportSettings = Object.fromEntries(formData);
+		//Saves ankiExportSettings
+		await browser.storage.local.set({ankiExportSettings});
+	} catch(e) {
+		//Throw error if something goes wrong
+		throw new Error("Couldn't save settings");
+	}
 });
 
 ankiConnect.style.background = 'red';

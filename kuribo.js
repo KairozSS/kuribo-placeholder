@@ -2,6 +2,10 @@
 var player_container;
 var player;
 var controls = document.querySelector('.ytp-chrome-bottom');
+var theaterObserver;
+var playerTheaterContainer;
+var playerWatch;
+var playerSizeMode;
 
 //Flag
 var runOnce = false;
@@ -20,6 +24,44 @@ ankiButton.style.backgroundImage = `url(${ankiIcon})`;
 ankiButton.style.backgroundSize = "contain";
 console.log(ankiIcon);
 subtitlesContainer.classList.add('subtitlesContainer');
+
+
+function makeid(length) {
+    var result           = '';
+    var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    var charactersLength = characters.length;
+    for ( var i = 0; i < length; i++ ) {
+      result += characters.charAt(Math.floor(Math.random() * 
+ charactersLength));
+   }
+   return result;
+}
+
+/*
+	Renders a browser bar to the right of the player depending of the state of the player
+  playerState is a string that represents the current state of the player. default, theater
+*/
+function renderBrowserBar(playerState) {
+	var prevBrowserBar = document.querySelector('.kuribo-vertical-view');
+	var browserBar = document.createElement('div');
+	var html5MainVideo = document.querySelector('#player-theater-container video.html5-main-video');
+	var playerTheaterContainer = document.querySelector('#player-theater-container');
+	var secondary = document.querySelector('#secondary');
+	var ytpChromeBottom = document.querySelector('.ytp-chrome-bottom');
+	browserBar.classList.add('kuribo-vertical-view');
+
+	if (prevBrowserBar) {
+		prevBrowserBar.remove();
+	}
+
+	if (playerState === 'theater') {
+		playerTheaterContainer.insertBefore(browserBar, playerTheaterContainer.firstChild);
+	}
+
+	if (playerState === 'default') {
+		secondary.insertBefore(browserBar, secondary.firstChild);
+	}
+}
 
 //returns video ID
 function getVideoID(player) {
@@ -50,67 +92,69 @@ function takeScreenshot() {
 
 // TO DO Write a description
 // TO DO write this as a promise
-function recordAudio(player, subtitle, callback) {
-	if (!subtitle.start) return; 
-	const video = document.querySelector(".video-stream");
-	const capture = HTMLMediaElement.prototype.captureStream 
-							|| HTMLMediaElement.prototype.mozCaptureStream;
+function recordAudio(player, subtitle) {
+	return new Promise((resolve, reject) => {
+		if (!subtitle.start) {
+			return reject(new Error("Subtitle is empty. It doesn't have a start time."));	
+		}
 
+		//Selects the main video element in the watch page
+		const video = document.querySelector(".html5-main-video");
 
-	//Getting audio from video
-	var source = context.createMediaElementSource(video);
+		//Getting audio from video
+		var source = context.createMediaElementSource(video);
 
-	//Fixing mute bug
-	if (!audioIsConnected) {
-		source.connect(context.destination);
-		audioIsConnected = true;
-	}
+		//Fixing mute bug
+		if (!audioIsConnected) {
+			source.connect(context.destination);
+			audioIsConnected = true;
+		}
 
-	//Still getting audio from video
-	var streamDest = context.createMediaStreamDestination();
-	source.connect(streamDest);
-	let stream = streamDest.stream;
+		//Still getting audio from video
+		var streamDest = context.createMediaStreamDestination();
+		source.connect(streamDest);
+		let stream = streamDest.stream;
 
-	let recorder = new MediaRecorder(stream);
-	recorder.ondataavailable = e => {
-		blobToBase64(e.data, function(base64String) {
-			callback(base64String);
-		});
-	}
+		let recorder = new MediaRecorder(stream);
+		recorder.ondataavailable = async e => {
+			const base64String = await blobToBase64(e.data);
+			resolve(base64String);
+		}
 
-	var recording = false;
+		var recording = false;
 
-	function handleRecording() {
-		var t = player.getCurrentTime()*1000;
-		var state = player.getPlayerState();
+		function handleRecording() {
+			var t = player.getCurrentTime()*1000;
+			var state = player.getPlayerState();
 
-		if (state === 2 && !recording) {
-			try {
-			 recorder.start();
-			 ankiButton.disabled = true;
-			 ankiButton.style.cursor = "not-allowed";
-			} catch(e) {
-				console.log(e);
+			if (state === 2 && !recording) {
+				try {
+				 recorder.start();
+				 ankiButton.disabled = true;
+				 ankiButton.style.cursor = "not-allowed";
+				} catch(e) {
+					console.log(e);
+				}
+				recording = true;
+				console.log("Recording");
+				setTimeout(() => player.playVideo(), 100);
 			}
-			recording = true;
-			console.log("Recording");
-			setTimeout(() => player.playVideo(), 100);
-		}
 
-		if (t >= subtitle.end && recording) {
-			player.pauseVideo();
-			clearInterval(interval);
-			console.log("cleared interval");
-			recorder.stop();
-			ankiButton.disabled = false;
-			ankiButton.style.cursor = "pointer";
-			console.log("Stopped recording");
+			if (t >= subtitle.end && recording) {
+				player.pauseVideo();
+				clearInterval(interval);
+				console.log("cleared interval");
+				recorder.stop();
+				ankiButton.disabled = false;
+				ankiButton.style.cursor = "pointer";
+				console.log("Stopped recording");
+			}
 		}
-	}
-	var interval;
-	goToSubtitle(player, subtitle);
-	player.pauseVideo();
-	setTimeout(() => {interval = setInterval(handleRecording, 10);}, 100);
+		var interval;
+		goToSubtitle(player, subtitle);
+		player.pauseVideo();
+		setTimeout(() => {interval = setInterval(handleRecording, 10);}, 100);
+	});
 }
 
 //videoID is a string. Returns a list of objects with the avaliable captions
@@ -322,9 +366,49 @@ function replayCurrentSubtitle(player, subtitles) {
 	Get references to the player and add event listeners. Set runOnce to true.
 */
 function initializePlayer() {
+	//document.body.classList.add('kuribo-youtube', 'kuribo-active', 'kuribo-vertical-view-active');
 	player_container = document.querySelector('#ytd-player');
-	player = document.querySelector('#movie_player').wrappedJSObject;
+	player = document.querySelector('#movie_player')
+	try {
+		if(!player) throw new Error('There is no player');
+		player = player.wrappedJSObject;
+	} catch(e) {
+		return;
+	}
+
+/*	playerWatch = document.querySelector('ytd-watch-flexy').wrappedJSObject;
+	playerSizeMode = player.isFullscreen() ? 'fullscreen' : (playerWatch.theater ? 'theater' : 'default');
+	console.log(playerSizeMode);
 	controls = document.querySelector('.ytp-chrome-bottom');
+
+	if (playerSizeMode === 'theater' || playerSizeMode === 'fullscreen') {
+		renderBrowserBar('theater');
+	} else {
+		renderBrowserBar('default');
+	}
+
+	theaterObserver = new MutationObserver(function(mutationList, observer) {
+		var newPlayerSizeMode = player.isFullscreen() ? 'fullscreen' : (playerWatch.theater ? 'theater' : 'default');
+
+		if (playerSizeMode === newPlayerSizeMode) {
+			console.log("Same");
+			return;
+		}
+		else {
+			playerSizeMode = newPlayerSizeMode;
+			if (playerSizeMode === 'fullscreen' || playerSizeMode === 'theater') {
+				console.log('theater or fullscreen')
+				renderBrowserBar('theater');
+			} else {
+				renderBrowserBar('default');
+			}
+		}
+
+	});
+
+	playerTheaterContainer = document.querySelector('#player-theater-container');
+	theaterObserver.observe(playerTheaterContainer, {childList: true});*/
+
 	initializeHotkeys();
 	runOnce = true;
 }
@@ -395,15 +479,65 @@ function ankiConnectInvoke(action, version, params={}) {
 	});
 }
 
-function blobToBase64(blob, callback) {
-  var reader = new FileReader();
+/*function blobToBase64(blob, callback) {
+	var reader = new FileReader();
   reader.onload = function() {
-      var dataUrl = reader.result;
-      var base64 = dataUrl.split(',')[1];
-      callback(base64);
-  };
-  reader.readAsDataURL(blob);
+    var dataUrl = reader.result;
+    var base64 = dataUrl.split(',')[1];
+    callback(base64);
+	};
+	reader.readAsDataURL(blob);
+};*/
+
+function blobToBase64(blob) {
+	return new Promise((resolve, reject) => {
+		var reader = new FileReader();
+	  reader.onload = function() {
+	    var dataUrl = reader.result;
+	    var base64 = dataUrl.split(',')[1];
+	    resolve(base64);
+  	};
+  	reader.onerror = (e) => {
+  		reject(e);
+  	}
+  	reader.readAsDataURL(blob);
+	});
 };
+
+function formatSettings(ankiExportSettings) {
+		var settings = {};
+		var subtitleFields = {}
+		var selectedTextFields = {}
+		var audioFields = []
+		var pictureFields = []
+
+		for (let k in ankiExportSettings) {
+			if (ankiExportSettings[k] === "Deck") {
+				settings['deck'] = ankiExportSettings['Deck'];
+			}
+
+			if (ankiExportSettings[k] === "Model") {
+				settings['model'] = ankiExportSettings['Model'];
+			}
+
+			if (ankiExportSettings[k] === "Subtitle") {
+				subtitleFields[k] = subtitle.text;
+			}
+
+			if (ankiExportSettings[k] === "Selected Text") {
+				selectedTextFields[k] = selectedText;
+			}
+
+			if (ankiExportSettings[k] === "Audio") {
+				audioFields.push(k);
+			}
+
+			if (ankiExportSettings[k] === "Image") {
+				pictureFields.push(k);
+			}
+		}
+		return {deck: ankiExportSettings.Deck, model: ankiExportSettings.Model, subtitleFields, selectedTextFields, audioFields, pictureFields};
+	}
 
 function main() {
 	if (runOnce) unmountElementsPlayer();
@@ -417,6 +551,7 @@ function main() {
 
 			player.appendChild(controlsContainer);
 			player.appendChild(subtitlesContainer);
+			//renderBrowserBar('theater');
 
 			var sub = {};
 
@@ -429,9 +564,8 @@ function main() {
 				}
 			}, 100);
 		})
-		.catch(() => {
-			window.subtitles = undefined
-			console.log(subtitles);
+		.catch((e) => {
+			window.subtitles = null;
 		});
 }
 
@@ -458,88 +592,48 @@ controlsContainer.addEventListener('mouseout', (e) => {
 	ankiButton.classList.add('hidden');
 });
 
-ankiButton.addEventListener('click', function(e) {
+ankiButton.addEventListener('click', async function(e) {
 	player.pauseVideo();
-	var ankiExportSettings = browser.storage.local.get("ankiExportSettings");
+	const {ankiExportSettings} = await browser.storage.local.get("ankiExportSettings");
 	const selectedText = getSelectedText();
 	const subtitle = getCurrentSubtitle(subtitles, player.getCurrentTime() * 1000);
-	recordAudio(player, subtitle, function(audio) {
-		const img = takeScreenshot();
-
-		function formatSettings(ankiExportSettings) {
-			var settings = {};
-			var subtitleFields = {}
-			var selectedTextFields = {}
-			var audioFields = []
-			var pictureFields = []
-
-			for (let k in ankiExportSettings) {
-				if (ankiExportSettings[k] === "Deck") {
-					settings['deck'] = ankiExportSettings['Deck'];
-				}
-
-				if (ankiExportSettings[k] === "Model") {
-					settings['model'] = ankiExportSettings['Model'];
-				}
-
-				if (ankiExportSettings[k] === "Subtitle") {
-					subtitleFields[k] = subtitle.text;
-				}
-
-				if (ankiExportSettings[k] === "Selected Text") {
-					selectedTextFields[k] = selectedText;
-				}
-
-				if (ankiExportSettings[k] === "Audio") {
-					audioFields.push(k);
-				}
-
-				if (ankiExportSettings[k] === "Image") {
-					pictureFields.push(k);
-				}
+	const img = takeScreenshot();
+	const audio = await recordAudio(player, subtitle);
+	const settings = formatSettings(ankiExportSettings);
+	try {
+		await ankiConnectInvoke("addNote", 6, {
+			note: {
+				deckName: settings.deck,
+				modelName: settings.model,
+				fields: {
+					...settings.selectedTextFields,
+					...settings.subtitleFields,
+				  "Audio Card": "x"
+				},
+				options: {
+					allowDuplicate: true
+				},
+				tags: [
+					"kuribo"
+				],
+				audio: [{
+					filename: `kuribo_${makeid(16)}.mp3`,
+					data: audio,
+					fields: settings.audioFields
+				}],
+				picture: [{
+					filename: `kuribo_${makeid(16)}.jpg`,
+					data: img,
+					fields: settings.pictureFields
+				}]
 			}
-
-			return {deck: ankiExportSettings.Deck, model: ankiExportSettings.Model, subtitleFields, selectedTextFields, audioFields, pictureFields};
-		}
-
-		ankiExportSettings.then(e => {
-			console.log(e);
-			var settings = formatSettings(e['ankiExportSettings']);
-			ankiConnectInvoke("addNote", 6, {
-				note: {
-					deckName: settings.deck,
-					modelName: settings.model,
-					fields: {
-						...settings.selectedTextFields,
-						...settings.subtitleFields,
-					  "Audio Card": "x"
-					},
-					options: {
-						allowDuplicate: true
-					},
-					tags: [
-						"kuribo"
-					],
-					audio: [{
-						filename: "audio_test.mp3",
-						data: audio,
-						fields: settings.audioFields
-					}],
-					picture: [{
-						filename: "img_test.jpg",
-						data: img,
-						fields: settings.pictureFields
-					}]
-				}
-			})
-			.then((res) => {
-				console.log(res);
-			}).catch(e => {
-				console.log(e);
-			})
 		});
-	});
+	} catch (e) {
+		throw e;
+	}
 });
+
+main();
 
 window.addEventListener('yt-navigate-finish', function() {
 	try {
