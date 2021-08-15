@@ -17,11 +17,23 @@ var controlsContainer = document.createElement('div');
 var ankiButton = document.createElement('button');
 var ankiIcon = browser.runtime.getURL("icons/anki.png");
 var subtitlesContainer = document.createElement('div');
+var kuriboVerticalViewToggle = document.createElement('a');
+var kuriboVerticalViewToggleSVG = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+var kuriboVerticalViewTogglePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+kuriboVerticalViewToggleSVG.setAttribute('width', '28');
+kuriboVerticalViewToggleSVG.setAttribute('height', '28');
+kuriboVerticalViewToggleSVG.setAttribute('viewBox', '0 0 640 640');
+kuriboVerticalViewTogglePath.setAttribute('fill', '#fff');
+kuriboVerticalViewTogglePath.setAttribute('d', 'M524.8 288h-409.6c-17.664 0-19.2 14.304-19.2 32s1.536 32 19.2 32h409.6c17.664 0 19.2-14.304 19.2-32s-1.536-32-19.2-32zM524.8 416h-409.6c-17.664 0-19.2 14.304-19.2 32s1.536 32 19.2 32h409.6c17.664 0 19.2-14.304 19.2-32s-1.536-32-19.2-32zM115.2 224h409.6c17.664 0 19.2-14.304 19.2-32s-1.536-32-19.2-32h-409.6c-17.664 0-19.2 14.304-19.2 32s1.536 32 19.2 32z');
+kuriboVerticalViewToggleSVG.appendChild(kuriboVerticalViewTogglePath);
+kuriboVerticalViewToggle.appendChild(kuriboVerticalViewToggleSVG);
+
 controlsContainer.appendChild(ankiButton);
 controlsContainer.classList.add('controls-container');
 ankiButton.classList.add('anki-button', 'hidden');
 ankiButton.style.backgroundImage = `url(${ankiIcon})`;
 ankiButton.style.backgroundSize = "contain";
+kuriboVerticalViewToggle.classList.add('kuribo-toggle-vertical-view', 'kuribo-autohide-me');
 console.log(ankiIcon);
 subtitlesContainer.classList.add('subtitlesContainer');
 
@@ -39,9 +51,9 @@ function makeid(length) {
 
 /*
 	Renders a browser bar to the right of the player depending of the state of the player
-  playerState is a string that represents the current state of the player. default, theater
+  playerSizeMode is a string that represents the current state of the player. default, theater
 */
-function renderBrowserBar(playerState) {
+function renderBrowserBar(playerSizeMode) {
 	var prevBrowserBar = document.querySelector('.kuribo-vertical-view');
 	var browserBar = document.createElement('div');
 	var html5MainVideo = document.querySelector('#player-theater-container video.html5-main-video');
@@ -54,11 +66,11 @@ function renderBrowserBar(playerState) {
 		prevBrowserBar.remove();
 	}
 
-	if (playerState === 'theater') {
+	if (playerSizeMode === 'theater') {
 		playerTheaterContainer.insertBefore(browserBar, playerTheaterContainer.firstChild);
 	}
 
-	if (playerState === 'default') {
+	if (playerSizeMode === 'default') {
 		secondary.insertBefore(browserBar, secondary.firstChild);
 	}
 }
@@ -362,54 +374,57 @@ function replayCurrentSubtitle(player, subtitles) {
 	player.seekTo(subtitle.start/1000);
 }
 
+function initializeBrowserBar() { 
+	playerWatch = document.querySelector('ytd-watch-flexy').wrappedJSObject;
+
+	function handleBarResize() {
+		let browserBar = document.querySelector('.kuribo-vertical-view');
+		if (playerSizeMode === 'default') {
+			browserBar.style.height = player.offsetHeight + 'px';
+		} else {
+			browserBar.style.height = document.querySelector('#player-theater-container').offsetHeight + 'px';
+		}
+	}
+
+	function handleTheaterChange() {
+		playerSizeMode = playerWatch.theater ? 'theater' : 'default';
+		if (playerSizeMode === 'theater') {
+			renderBrowserBar('theater');
+		} else {
+			renderBrowserBar('default');
+		}
+	}
+
+	handleTheaterChange();
+	theaterObserver = new MutationObserver(handleTheaterChange);
+	var resizeObserver = new ResizeObserver(handleBarResize);
+
+	theaterObserver.observe(playerWatch, {
+		attributeFilter: ['theater'],
+	});
+
+	resizeObserver.observe(player);
+}
+
 /*
 	Get references to the player and add event listeners. Set runOnce to true.
 */
 function initializePlayer() {
-	//document.body.classList.add('kuribo-youtube', 'kuribo-active', 'kuribo-vertical-view-active');
+	document.body.classList.add('kuribo-youtube', 'kuribo-active', 'kuribo-autohide-controls');
 	player_container = document.querySelector('#ytd-player');
 	player = document.querySelector('#movie_player')
 	try {
 		if(!player) throw new Error('There is no player');
 		player = player.wrappedJSObject;
+		player.appendChild(kuriboVerticalViewToggle);
+		initializeBrowserBar();
 	} catch(e) {
 		return;
 	}
 
-/*	playerWatch = document.querySelector('ytd-watch-flexy').wrappedJSObject;
-	playerSizeMode = player.isFullscreen() ? 'fullscreen' : (playerWatch.theater ? 'theater' : 'default');
-	console.log(playerSizeMode);
-	controls = document.querySelector('.ytp-chrome-bottom');
-
-	if (playerSizeMode === 'theater' || playerSizeMode === 'fullscreen') {
-		renderBrowserBar('theater');
-	} else {
-		renderBrowserBar('default');
-	}
-
-	theaterObserver = new MutationObserver(function(mutationList, observer) {
-		var newPlayerSizeMode = player.isFullscreen() ? 'fullscreen' : (playerWatch.theater ? 'theater' : 'default');
-
-		if (playerSizeMode === newPlayerSizeMode) {
-			console.log("Same");
-			return;
-		}
-		else {
-			playerSizeMode = newPlayerSizeMode;
-			if (playerSizeMode === 'fullscreen' || playerSizeMode === 'theater') {
-				console.log('theater or fullscreen')
-				renderBrowserBar('theater');
-			} else {
-				renderBrowserBar('default');
-			}
-		}
-
-	});
-
-	playerTheaterContainer = document.querySelector('#player-theater-container');
-	theaterObserver.observe(playerTheaterContainer, {childList: true});*/
-
 	initializeHotkeys();
+	initializeVerticalViewToggle(); //Consider moving to initializeBrowserBar
+	initializeAutohideControls();
 	runOnce = true;
 }
 
@@ -431,6 +446,22 @@ function handleKeys(e) {
 		replayCurrentSubtitle(player, subtitles);
 	}
 
+}
+
+function initializeAutohideControls() {
+	player_container.addEventListener('mouseover', function(e) {
+		document.body.classList.remove('kuribo-autohide-controls');
+	});
+
+	player_container.addEventListener('mouseout', function(e) {
+		document.body.classList.add('kuribo-autohide-controls');
+	});
+}
+
+function initializeVerticalViewToggle() {
+	kuriboVerticalViewToggle.addEventListener('click', function(e) {
+		document.body.classList.toggle('kuribo-vertical-view-active');
+	})
 }
 
 function initializeHotkeys() {
@@ -633,7 +664,16 @@ ankiButton.addEventListener('click', async function(e) {
 	}
 });
 
-main();
+document.addEventListener('fullscreenchange', function(e) {
+	if (document.fullscreenElement && playerSizeMode !== 'theater') {
+		renderBrowserBar('theater');
+  }
+
+  else if (playerSizeMode !== 'theater') {
+  	renderBrowserBar('default');
+  }
+  
+});
 
 window.addEventListener('yt-navigate-finish', function() {
 	try {

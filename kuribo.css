@@ -49,6 +49,7 @@
 .kuribo-youtube #player-theater-container .kuribo-vertical-view {
 	z-index: 30;
 	width: 400px;
+	height: 100%;
 	left: 100%;
 	top: 0;
 	position: absolute;
@@ -64,6 +65,8 @@
 }
 
 .kuribo-youtube .kuribo-vertical-view {
+	visibility: hidden;
+	position: fixed;
 	top: 0;
 	left: 0;
 	width: 100%;
@@ -78,11 +81,49 @@
 	visibility: hidden;
 	position: absolute;
 	width: 400px;
-	height: 100%;
 	right: 0;
 	top: 0;
 	height: 480px;
-	background: red;
+	background: #000;
+	border: solid 1px #fff;
+}
+
+.kuribo-toggle-vertical-view {
+	display: none;
+	position: fixed;
+	right: 0;
+	top: 34px;
+	padding: 3px 1px 1px 5px;
+	background: none;
+	z-index: 11111;
+	opacity: 0.7;
+	cursor: pointer;
+	background: rgba(255, 255, 255, 0.2);
+	border-bottom-left-radius: 15px;
+	border-top-left-radius: 15px;
+	transition: opacity 0.3s !important;
+}
+
+.kuribo-active .kuribo-toggle-vertical-view {
+	display: block;
+}
+
+.kuribo-vertical-view-active .kuribo-toggle-vertical-view {
+	right: 400px;
+}
+
+.kuribo-youtube .kuribo-toggle-vertical-view {
+	z-index: 30;
+	position: absolute;
+	top: 60px;
+}
+
+.kuribo-youtube.kuribo-vertical-view-active .kuribo-toggle-vertical-view {
+	right: 0;
+}
+
+.kuribo-active.kuribo-autohide-controls .kuribo-autohide-me:not(:hover) {
+	opacity: 0;
 }
 
 .subtitlesContainer {
