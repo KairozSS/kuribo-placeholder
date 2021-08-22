@@ -37,6 +37,28 @@ kuriboVerticalViewToggle.classList.add('kuribo-toggle-vertical-view', 'kuribo-au
 console.log(ankiIcon);
 subtitlesContainer.classList.add('subtitlesContainer');
 
+function renderBrowserBarTabs() {
+	let tabsContainer = document.createElement('div');
+	let tab_1 = document.createElement('a');
+	tab_1.innerText = 'Tab 1'; 
+	let tab_2 = document.createElement('a');
+	tab_2.innerText = 'Tab 2';
+	let tab_3 = document.createElement('a');
+	tab_3.innerText = 'Tab 3';
+	let tabs = [tab_1, tab_2, tab_3];
+	tabsContainer.classList.add('kuribo-vertical-view-tabs');
+	tabs.forEach((tab) => {
+		tab.href = '#';
+		tab.classList.add('kuribo-vv-tab-title', 'kuribo-vv-top-btn');
+		tabsContainer.appendChild(tab);
+	});
+
+	tab_1.classList.add('kuribo-active-tab');
+
+
+	let browserBar = document.querySelector('.kuribo-vertical-view');
+	browserBar.appendChild(tabsContainer);
+}
 
 function makeid(length) {
     var result           = '';
@@ -58,7 +80,7 @@ function renderBrowserBar(playerSizeMode) {
 	var browserBar = document.createElement('div');
 	var html5MainVideo = document.querySelector('#player-theater-container video.html5-main-video');
 	var playerTheaterContainer = document.querySelector('#player-theater-container');
-	var secondary = document.querySelector('#secondary');
+	var secondary = document.querySelector('.ytd-watch-flexy#secondary');
 	var ytpChromeBottom = document.querySelector('.ytp-chrome-bottom');
 	browserBar.classList.add('kuribo-vertical-view');
 
@@ -68,10 +90,12 @@ function renderBrowserBar(playerSizeMode) {
 
 	if (playerSizeMode === 'theater') {
 		playerTheaterContainer.insertBefore(browserBar, playerTheaterContainer.firstChild);
+		renderBrowserBarTabs();
 	}
 
 	if (playerSizeMode === 'default') {
 		secondary.insertBefore(browserBar, secondary.firstChild);
+		renderBrowserBarTabs();
 	}
 }
 
@@ -201,8 +225,8 @@ function getCaptionTracksList(videoID, player) {
 function findSubtitleData(captionTracksList, lang) {
 	const subtitleData = 
 		captionTracksList.find(el => el.vssId == `.${lang}`) ||  //Subtitles created by humans
-		captionTracksList.find(el => el.vssId == `a.${lang}`) || //Auto-generated subs
-		captionTracksList.find(el => el.vssId && el.vssId.includes(`.${lang}`));
+		captionTracksList.find(el => el.vssId && el.vssId.includes(`${lang}`)) ||
+		captionTracksList.find(el => el.vssId == `a.${lang}`); //Auto-generated subs
 
 	if (!subtitleData || (!subtitleData.url)) {
 		throw new Error (`Could not find ${lang} captions`);
@@ -418,6 +442,7 @@ function initializePlayer() {
 		player = player.wrappedJSObject;
 		player.appendChild(kuriboVerticalViewToggle);
 		initializeBrowserBar();
+		console.log("Ok");
 	} catch(e) {
 		return;
 	}
@@ -461,7 +486,7 @@ function initializeAutohideControls() {
 function initializeVerticalViewToggle() {
 	kuriboVerticalViewToggle.addEventListener('click', function(e) {
 		document.body.classList.toggle('kuribo-vertical-view-active');
-	})
+	});
 }
 
 function initializeHotkeys() {
@@ -475,7 +500,7 @@ function unmountElementsPlayer() {
 	clearInterval(window.subtitleInterval);
 	subtitlesContainer.innerText = "";
 	subtitlesContainer.remove();
-	ankiButton.remove();
+	controlsContainer.remove();
 }
 
 /*
@@ -535,7 +560,7 @@ function blobToBase64(blob) {
 	});
 };
 
-function formatSettings(ankiExportSettings) {
+function formatSettings(ankiExportSettings, subtitle, selectedText) {
 		var settings = {};
 		var subtitleFields = {}
 		var selectedTextFields = {}
@@ -582,7 +607,7 @@ function main() {
 
 			player.appendChild(controlsContainer);
 			player.appendChild(subtitlesContainer);
-			//renderBrowserBar('theater');
+			//</i>BrowserBar('theater');
 
 			var sub = {};
 
@@ -630,7 +655,7 @@ ankiButton.addEventListener('click', async function(e) {
 	const subtitle = getCurrentSubtitle(subtitles, player.getCurrentTime() * 1000);
 	const img = takeScreenshot();
 	const audio = await recordAudio(player, subtitle);
-	const settings = formatSettings(ankiExportSettings);
+	const settings = formatSettings(ankiExportSettings, subtitle, selectedText); //!!!Change this. Less arguments (?)
 	try {
 		await ankiConnectInvoke("addNote", 6, {
 			note: {
